@@ -1,8 +1,9 @@
 {
-  "name": "rng-game-jasper",
+  "name": "rng-game",
   "version": "1.0.0",
-  "description": "A fun RNG game with rarities, inventory, and shop system",
-  "main": "src/App.js",
+  "private": true,
+  "description": "A simple React-based RNG roll game.",
+  "main": "src/index.js",
   "scripts": {
     "start": "react-scripts start",
     "build": "react-scripts build",
@@ -13,18 +14,17 @@
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
     "react-scripts": "5.0.1",
-    "lucide-react": "^0.263.1"
+    "lucide-react": "^0.288.0"
   },
-  "browserslist": {
-    "production": [
-      ">0.2%",
-      "not dead",
-      "not op_mini all"
-    ],
-    "development": [
-      "last 1 chrome version",
-      "last 1 firefox version",
-      "last 1 safari version"
+  "eslintConfig": {
+    "extends": [
+      "react-app",
+      "react-app/jest"
     ]
-  }
+  },
+  "browserslist": [
+    ">0.2%",
+    "not dead",
+    "not op_mini all"
+  ]
 }
