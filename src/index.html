@@ -1,0 +1,419 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RNG Game - For Jasper</title>
+    <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script src="https://unpkg.com/lucide@0.263.1/dist/umd/lucide.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body>
+    <div id="root"></div>
+    
+    <script type="text/babel">
+        const { useState, useEffect } = React;
+        const { Star, Package, ShoppingCart, Coins, Clock } = lucide;
+
+        const RNGGame = () => {
+            const [coins, setCoins] = useState(100);
+            const [inventory, setInventory] = useState({});
+            const [currentScreen, setCurrentScreen] = useState('home');
+            const [rollCooldown, setRollCooldown] = useState(0);
+            const [lastRoll, setLastRoll] = useState(null);
+            const [selectedSellItem, setSelectedSellItem] = useState('');
+            const [sellAmount, setSellAmount] = useState(1);
+
+            // Rarity definitions with drop rates and value ranges
+            const rarities = {
+                Common: { 
+                    chance: 50, 
+                    valueRange: [1, 3], 
+                    color: 'text-gray-500',
+                    bgColor: 'bg-gray-100',
+                    borderColor: 'border-gray-300'
+                },
+                Uncommon: { 
+                    chance: 20, 
+                    valueRange: [4, 8], 
+                    color: 'text-green-600',
+                    bgColor: 'bg-green-100',
+                    borderColor: 'border-green-300'
+                },
+                Rare: { 
+                    chance: 12, 
+                    valueRange: [12, 35], 
+                    color: 'text-blue-600',
+                    bgColor: 'bg-blue-100',
+                    borderColor: 'border-blue-300'
+                },
+                Epic: { 
+                    chance: 7, 
+                    valueRange: [40, 60], 
+                    color: 'text-purple-600',
+                    bgColor: 'bg-purple-100',
+                    borderColor: 'border-purple-300'
+                },
+                Legendary: { 
+                    chance: 5, 
+                    valueRange: [50, 75], 
+                    color: 'text-orange-600',
+                    bgColor: 'bg-orange-100',
+                    borderColor: 'border-orange-300'
+                },
+                Mythic: { 
+                    chance: 1, 
+                    valueRange: [150, 1000], 
+                    color: 'text-red-600',
+                    bgColor: 'bg-red-100',
+                    borderColor: 'border-red-300'
+                },
+                Secret: { 
+                    chance: 0.2, 
+                    valueRange: [1500, 3000], 
+                    color: 'text-pink-600',
+                    bgColor: 'bg-pink-100',
+                    borderColor: 'border-pink-300'
+                },
+                Divine: { 
+                    chance: 0.08, 
+                    valueRange: [5000, 10000], 
+                    color: 'text-yellow-600',
+                    bgColor: 'bg-yellow-100',
+                    borderColor: 'border-yellow-300'
+                }
+            };
+
+            // Shop items
+            const shopItems = [
+                { name: 'Extra Roll', price: 50, description: 'Get an additional roll instantly' },
+                { name: 'Luck Boost', price: 200, description: 'Temporarily increase rare drop chances' },
+                { name: 'Coin Multiplier', price: 500, description: 'Double coin rewards for 10 rolls' }
+            ];
+
+            // Cooldown effect
+            useEffect(() => {
+                let interval;
+                if (rollCooldown > 0) {
+                    interval = setInterval(() => {
+                        setRollCooldown(prev => prev - 1);
+                    }, 1000);
+                }
+                return () => clearInterval(interval);
+            }, [rollCooldown]);
+
+            // Roll function
+            const rollItem = () => {
+                if (rollCooldown > 0) return;
+
+                const random = Math.random() * 100;
+                let currentChance = 0;
+                let rolledRarity = 'Common';
+
+                for (const [rarity, data] of Object.entries(rarities)) {
+                    currentChance += data.chance;
+                    if (random <= currentChance) {
+                        rolledRarity = rarity;
+                        break;
+                    }
+                }
+
+                const rarity = rarities[rolledRarity];
+                const value = Math.floor(Math.random() * (rarity.valueRange[1] - rarity.valueRange[0] + 1)) + rarity.valueRange[0];
+                
+                // Add to inventory
+                const itemKey = rolledRarity;
+                setInventory(prev => ({
+                    ...prev,
+                    [itemKey]: (prev[itemKey] || 0) + 1
+                }));
+
+                // Add coins based on rarity
+                setCoins(prev => prev + Math.floor(value / 2));
+                
+                setLastRoll({ rarity: rolledRarity, value });
+                setRollCooldown(2);
+            };
+
+            // Sell items
+            const sellItems = () => {
+                if (!selectedSellItem || !inventory[selectedSellItem] || sellAmount <= 0) return;
+
+                const available = inventory[selectedSellItem];
+                const actualSellAmount = Math.min(sellAmount, available);
+                
+                if (actualSellAmount <= 0) return;
+
+                const rarity = rarities[selectedSellItem];
+                const avgValue = (rarity.valueRange[0] + rarity.valueRange[1]) / 2;
+                const totalValue = Math.floor(avgValue * actualSellAmount);
+
+                setCoins(prev => prev + totalValue);
+                setInventory(prev => {
+                    const newInv = { ...prev };
+                    newInv[selectedSellItem] = newInv[selectedSellItem] - actualSellAmount;
+                    if (newInv[selectedSellItem] <= 0) {
+                        delete newInv[selectedSellItem];
+                        setSelectedSellItem('');
+                    }
+                    return newInv;
+                });
+                
+                setSellAmount(1);
+            };
+
+            // Buy shop item
+            const buyShopItem = (item) => {
+                if (coins < item.price) return;
+                
+                setCoins(prev => prev - item.price);
+                
+                // Apply item effect
+                if (item.name === 'Extra Roll') {
+                    setRollCooldown(0);
+                    rollItem();
+                }
+                // Note: Other shop items would need their specific implementations
+            };
+
+            // Icon component wrapper
+            const Icon = ({ icon: IconComponent, className }) => {
+                return <IconComponent className={className} />;
+            };
+
+            // Home Screen
+            const HomeScreen = () => (
+                <div className="min-h-screen bg-gradient-to-br from-blue-900 via-purple-900 to-pink-900 text-white">
+                    <div className="container mx-auto px-4 py-8">
+                        {/* Header */}
+                        <div className="text-center mb-8">
+                            <h1 className="text-4xl font-bold mb-2 bg-gradient-to-r from-yellow-400 to-pink-400 bg-clip-text text-transparent">
+                                For Jasper
+                            </h1>
+                            <div className="flex items-center justify-center gap-2 text-xl">
+                                <Icon icon={Coins} className="w-6 h-6 text-yellow-400" />
+                                <span className="font-semibold">{coins} Coins</span>
+                            </div>
+                        </div>
+
+                        {/* Last Roll Result */}
+                        {lastRoll && (
+                            <div className={`mx-auto max-w-sm mb-8 p-4 rounded-lg border-2 ${rarities[lastRoll.rarity].bgColor} ${rarities[lastRoll.rarity].borderColor}`}>
+                                <div className="text-center">
+                                    <div className={`text-lg font-bold ${rarities[lastRoll.rarity].color}`}>
+                                        {lastRoll.rarity}!
+                                    </div>
+                                    <div className="text-gray-700">Value: {lastRoll.value}</div>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Navigation */}
+                        <div className="flex justify-center gap-4 mb-8">
+                            <button
+                                onClick={() => setCurrentScreen('inventory')}
+                                className="flex items-center gap-2 px-6 py-3 bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors"
+                            >
+                                <Icon icon={Package} className="w-5 h-5" />
+                                Inventory
+                            </button>
+                            <button
+                                onClick={() => setCurrentScreen('shop')}
+                                className="flex items-center gap-2 px-6 py-3 bg-green-600 hover:bg-green-700 rounded-lg transition-colors"
+                            >
+                                <Icon icon={ShoppingCart} className="w-5 h-5" />
+                                Shop
+                            </button>
+                        </div>
+
+                        {/* Roll Button */}
+                        <div className="text-center">
+                            <button
+                                onClick={rollItem}
+                                disabled={rollCooldown > 0}
+                                className={`px-12 py-6 text-2xl font-bold rounded-full transition-all transform hover:scale-105 ${
+                                    rollCooldown > 0 
+                                        ? 'bg-gray-600 cursor-not-allowed' 
+                                        : 'bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 shadow-lg'
+                                }`}
+                            >
+                                {rollCooldown > 0 ? (
+                                    <div className="flex items-center gap-2">
+                                        <Icon icon={Clock} className="w-6 h-6" />
+                                        {rollCooldown}s
+                                    </div>
+                                ) : (
+                                    <div className="flex items-center gap-2">
+                                        <Icon icon={Star} className="w-6 h-6" />
+                                        ROLL
+                                    </div>
+                                )}
+                            </button>
+                        </div>
+
+                        {/* Rarity Info */}
+                        <div className="mt-12 max-w-2xl mx-auto">
+                            <h3 className="text-xl font-bold mb-4 text-center">Drop Rates</h3>
+                            <div className="grid gap-2 text-sm">
+                                {Object.entries(rarities).map(([name, data]) => (
+                                    <div key={name} className={`flex justify-between items-center p-2 rounded ${data.bgColor} ${data.color}`}>
+                                        <span className="font-semibold">{name}</span>
+                                        <span>{data.chance}% (${data.valueRange[0]}-${data.valueRange[1]})</span>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            );
+
+            // Inventory Screen
+            const InventoryScreen = () => (
+                <div className="min-h-screen bg-gradient-to-br from-green-900 via-blue-900 to-purple-900 text-white">
+                    <div className="container mx-auto px-4 py-8">
+                        <div className="flex items-center justify-between mb-8">
+                            <h1 className="text-3xl font-bold">Inventory</h1>
+                            <button
+                                onClick={() => setCurrentScreen('home')}
+                                className="px-4 py-2 bg-gray-600 hover:bg-gray-700 rounded-lg"
+                            >
+                                Back to Home
+                            </button>
+                        </div>
+
+                        <div className="flex items-center gap-2 mb-6 text-xl">
+                            <Icon icon={Coins} className="w-6 h-6 text-yellow-400" />
+                            <span>{coins} Coins</span>
+                        </div>
+
+                        {Object.keys(inventory).length === 0 ? (
+                            <div className="text-center text-gray-400 mt-12">
+                                <Icon icon={Package} className="w-16 h-16 mx-auto mb-4 opacity-50" />
+                                <p>Your inventory is empty. Go roll some items!</p>
+                            </div>
+                        ) : (
+                            <>
+                                {/* Inventory Items */}
+                                <div className="grid gap-4 mb-8">
+                                    {Object.entries(inventory).map(([item, count]) => {
+                                        const rarity = rarities[item];
+                                        return (
+                                            <div key={item} className={`p-4 rounded-lg border-2 ${rarity.bgColor} ${rarity.borderColor}`}>
+                                                <div className="flex justify-between items-center">
+                                                    <div>
+                                                        <span className={`font-bold ${rarity.color}`}>{item}</span>
+                                                        <span className="ml-2 text-gray-700">x{count}</span>
+                                                    </div>
+                                                    <div className="text-sm text-gray-600">
+                                                        ${rarity.valueRange[0]}-${rarity.valueRange[1]} each
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+
+                                {/* Sell Section */}
+                                <div className="bg-red-900/30 p-6 rounded-lg border border-red-500/30">
+                                    <h3 className="text-xl font-bold mb-4">Sell Items</h3>
+                                    <div className="grid gap-4 sm:grid-cols-3">
+                                        <select
+                                            value={selectedSellItem}
+                                            onChange={(e) => {
+                                                setSelectedSellItem(e.target.value);
+                                                setSellAmount(1);
+                                            }}
+                                            className="px-3 py-2 bg-gray-800 border border-gray-600 rounded text-white"
+                                        >
+                                            <option value="">Select item to sell</option>
+                                            {Object.keys(inventory).map(item => (
+                                                <option key={item} value={item}>{item} (x{inventory[item]})</option>
+                                            ))}
+                                        </select>
+                                        
+                                        <input
+                                            type="number"
+                                            min="1"
+                                            max={selectedSellItem ? inventory[selectedSellItem] : 1}
+                                            value={sellAmount}
+                                            onChange={(e) => setSellAmount(parseInt(e.target.value) || 1)}
+                                            className="px-3 py-2 bg-gray-800 border border-gray-600 rounded text-white"
+                                            placeholder="Amount"
+                                        />
+                                        
+                                        <button
+                                            onClick={sellItems}
+                                            disabled={!selectedSellItem}
+                                            className="px-4 py-2 bg-red-600 hover:bg-red-700 disabled:bg-gray-600 rounded transition-colors"
+                                        >
+                                            Sell
+                                        </button>
+                                    </div>
+                                    
+                                    {selectedSellItem && (
+                                        <div className="mt-2 text-sm text-gray-300">
+                                            Estimated value: ${Math.floor((rarities[selectedSellItem].valueRange[0] + rarities[selectedSellItem].valueRange[1]) / 2 * sellAmount)}
+                                        </div>
+                                    )}
+                                </div>
+                            </>
+                        )}
+                    </div>
+                </div>
+            );
+
+            // Shop Screen
+            const ShopScreen = () => (
+                <div className="min-h-screen bg-gradient-to-br from-purple-900 via-pink-900 to-red-900 text-white">
+                    <div className="container mx-auto px-4 py-8">
+                        <div className="flex items-center justify-between mb-8">
+                            <h1 className="text-3xl font-bold">Shop</h1>
+                            <button
+                                onClick={() => setCurrentScreen('home')}
+                                className="px-4 py-2 bg-gray-600 hover:bg-gray-700 rounded-lg"
+                            >
+                                Back to Home
+                            </button>
+                        </div>
+
+                        <div className="flex items-center gap-2 mb-6 text-xl">
+                            <Icon icon={Coins} className="w-6 h-6 text-yellow-400" />
+                            <span>{coins} Coins</span>
+                        </div>
+
+                        <div className="grid gap-6 max-w-2xl mx-auto">
+                            {shopItems.map((item, index) => (
+                                <div key={index} className="bg-white/10 p-6 rounded-lg border border-white/20">
+                                    <div className="flex justify-between items-start mb-2">
+                                        <h3 className="text-xl font-bold">{item.name}</h3>
+                                        <span className="text-2xl font-bold text-yellow-400">{item.price}</span>
+                                    </div>
+                                    <p className="text-gray-300 mb-4">{item.description}</p>
+                                    <button
+                                        onClick={() => buyShopItem(item)}
+                                        disabled={coins < item.price}
+                                        className="w-full py-2 bg-green-600 hover:bg-green-700 disabled:bg-gray-600 rounded transition-colors"
+                                    >
+                                        {coins >= item.price ? 'Buy' : 'Not enough coins'}
+                                    </button>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                </div>
+            );
+
+            // Render current screen
+            if (currentScreen === 'inventory') return <InventoryScreen />;
+            if (currentScreen === 'shop') return <ShopScreen />;
+            return <HomeScreen />;
+        };
+
+        // Render the app
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<RNGGame />);
+    </script>
+</body>
+</html>
