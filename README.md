@@ -1,3 +1,4 @@
+# website link: https://rngbyset.netlify.app/
 # RNG Game - A React-based Probabilistic Gaming Experience
 
 [![React](https://img.shields.io/badge/React-18.2.0-61DAFB?style=for-the-badge&logo=react&logoColor=white)](https://reactjs.org/)
